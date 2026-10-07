@@ -55,6 +55,12 @@ await mobile.getByLabel("Your name").waitFor();
 await mkdir(new URL("../docs/evidence/", import.meta.url), { recursive: true });
 const output = (name) =>
   new URL("../docs/evidence/" + name, import.meta.url).pathname;
+await mobile.getByLabel("Your name").fill("Alex Customer");
+await mobile.getByLabel("I checked this version").check();
+await mobile.waitForFunction(() => {
+  const button = [...document.querySelectorAll("button")].find(e => e.textContent.trim() === "Approve this version");
+  return button && getComputedStyle(button).backgroundColor === "rgb(183, 56, 34)";
+});
 await mobile.screenshot({
   path: output("customer-review-mobile.png"),
   fullPage: true,

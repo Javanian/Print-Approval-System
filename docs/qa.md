@@ -13,7 +13,7 @@ Executed on 2026-10-07 in the isolated cloud container. No Windows workstation r
 | Docker Compose interpolation/schema | **Passed** with explicitly supplied local secrets; missing secrets fail closed |
 | Git diff whitespace check | **Passed** |
 | Repository | User-created public `Javanian/Print-Approval-System`; visibility preserved |
-| Exact-commit GitHub Actions CI | Awaiting verification after the first push; local checks do not imply remote success |
+| Exact-commit GitHub Actions CI | **Passed** for application commit `5ad171f1dabf2f8f3e6ff4a1248623bf24ca1918`: [run 37583427813](https://github.com/Javanian/Print-Approval-System/actions/runs/37583427813). See the live workflow for subsequent documentation commits. |
 | Public deployment | **Not performed** |
 
 ## What the tests prove
@@ -34,7 +34,7 @@ The local Playwright HTML report is generated at `frontend/playwright-report/ind
 
 ## Limits and launch blockers
 
-This is a tested narrow portfolio release, not verified production readiness. The user created the public repository and authorized publication; its visibility is unchanged. Remote CI must be checked against the pushed SHA.
+This is a tested narrow portfolio release, not verified production readiness. The user created the public repository and authorized publication; its visibility is unchanged. The first application push was verified against the remote SHA and passed GitHub CI. Subsequent commit runs are available in the [Verify workflow](https://github.com/Javanian/Print-Approval-System/actions/workflows/ci.yml).
 
 Built-in safeguards now cover bounded login/public request throttling, image/request/concurrency limits, transactional storage quotas, safe error responses and sanitized application error logs. Fifteen backend checks cover both the workflow and safeguards. The backup/restore scripts were executed against a disposable PostgreSQL database: 58 jobs, 72 versions and 16 approvals restored, with all image digests and storage counters verified; overwrite/unsafe-target refusal was checked.
 

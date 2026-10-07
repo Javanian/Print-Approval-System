@@ -1,10 +1,10 @@
 DO
- restored_jobs 
+ restored_jobs
 ---------------
             58
 (1 row)
 
- restored_versions | approvals 
+ restored_versions | approvals
 -------------------+-----------
                 72 |        16
 (1 row)

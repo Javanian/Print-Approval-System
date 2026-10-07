@@ -1,5 +1,7 @@
 # Print Approval System
 
+[![Verify](https://github.com/Javanian/Print-Approval-System/actions/workflows/ci.yml/badge.svg)](https://github.com/Javanian/Print-Approval-System/actions/workflows/ci.yml)
+
 A small print shop gets an unambiguous decision on a specific preview and its print specifications before production. A customer can approve or request changes without creating an account.
 
 ## Screenshots
