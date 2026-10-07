@@ -15,6 +15,19 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProofService {
   final JdbcTemplate db;
 
+  @org.springframework.beans.factory.annotation.Value("${app.storage.max-bytes:1073741824}")
+  long maxBytes;
+
+  @org.springframework.beans.factory.annotation.Value("${app.storage.max-jobs:5000}")
+  int maxJobs;
+
+  @org.springframework.beans.factory.annotation.Value("${app.storage.max-versions:20000}")
+  int maxVersions;
+
+  static ResponseStatusException quota() {
+    return new ResponseStatusException(HttpStatus.INSUFFICIENT_STORAGE);
+  }
+
   public ProofService(JdbcTemplate db) {
     this.db = db;
   }
@@ -41,7 +54,11 @@ public class ProofService {
             + " state FROM jobs j ORDER BY created_at DESC");
   }
 
+  @Transactional
   public UUID create(String title) {
+    if (db.update(
+            "UPDATE storage_budget SET job_count=job_count+1 WHERE id=1 AND job_count < ?", maxJobs)
+        != 1) throw quota();
     UUID id = UUID.randomUUID();
     db.update("INSERT INTO jobs(id,title) VALUES (?,?)", id, title);
     return id;
@@ -65,6 +82,10 @@ public class ProofService {
     if (db.queryForObject(
             "SELECT count(*) FROM versions WHERE job_id=? AND state='APPROVED'", Integer.class, job)
         > 0) throw bad("Approved jobs are locked. Create a new job.");
+    if (data.length > 5000000 || specs.isBlank() || specs.length() > 2000)
+      throw new IllegalArgumentException();
+    if (db.queryForObject("SELECT count(*) FROM versions WHERE job_id=?", Integer.class, job)
+        >= 100) throw quota();
     byte[] clean;
     try (var input = ImageIO.createImageInputStream(new ByteArrayInputStream(data))) {
       var readers = ImageIO.getImageReaders(input);
@@ -85,6 +106,14 @@ public class ProofService {
         reader.dispose();
       }
     }
+    if (db.update(
+            "UPDATE storage_budget SET used_bytes=used_bytes+?, version_count=version_count+1 WHERE"
+                + " id=1 AND used_bytes+?<=? AND version_count<?",
+            clean.length,
+            clean.length,
+            maxBytes,
+            maxVersions)
+        != 1) throw quota();
     int n =
         db.queryForObject(
             "SELECT coalesce(max(number),0)+1 FROM versions WHERE job_id=?", Integer.class, job);
@@ -127,6 +156,8 @@ public class ProofService {
   }
 
   public Map<String, Object> publicVersion(String token) {
+    if (!token.matches("[A-Za-z0-9_-]{43}"))
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     var rows =
         db.queryForList(
             "SELECT"

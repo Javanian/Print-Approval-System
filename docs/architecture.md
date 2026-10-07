@@ -22,4 +22,16 @@ The server checks actual decoder format (PNG/JPEG), byte size and dimensions bef
 
 ## Reproducible baseline
 
-Spring Boot 3.5.16 parent pins its managed dependencies; Angular 21.2.25 and TypeScript 5.9.3 are exact dependencies with npm lockfile. Java 21 is compatible with the [Spring Boot 3.5 requirements](https://docs.spring.io/spring-boot/3.5/system-requirements.html); Angular 21 supports Node 24 and TypeScript 5.9 per the [official compatibility matrix](https://angular.dev/reference/versions). Versions were resolved from Maven Central and npm. PostgreSQL 17.11 and the Java 21.0.12.1 runtime include immutable image digests. PostgreSQL 17.11 was verified against the [official supported-version table](https://www.postgresql.org/support/versioning/). All application build/runtime container bases are pinned by digest. GitHub Actions references use major-version tags; pin audited action SHAs before a hardened production release.
+Spring Boot 4.1.1 parent pins its managed dependencies; Angular 21.2.25 and TypeScript 5.9.3 are exact dependencies with npm lockfile. Java 21 is compatible with the [Spring Boot 4.1 requirements](https://docs.spring.io/spring-boot/4.1/system-requirements.html); Angular 21 supports Node 24 and TypeScript 5.9 per the [official compatibility matrix](https://angular.dev/reference/versions). Versions were resolved from Maven Central and npm. PostgreSQL 17.11 and the Java 21.0.12.1 runtime include immutable image digests. PostgreSQL 17.11 was verified against the [official supported-version table](https://www.postgresql.org/support/versioning/). All application build/runtime container bases are pinned by digest. GitHub Actions references use major-version tags; pin audited action SHAs before a hardened production release.
+
+## ADR 006 — Bounded single-instance safeguards
+
+A synchronized fixed-minute in-memory limiter bounds login/public traffic without another service. Its global cap and key limit bound memory; forwarded addresses are not trusted. A two-permit upload semaphore bounds concurrent image decoding. This deliberately protects a small single-instance shop; production edge limits remain necessary for distributed traffic and slow-client attacks.
+
+A singleton PostgreSQL storage-budget row reserves image bytes and job/version counts within the same transaction as writes. It serializes quota updates across instances and fails before superseding an existing version. Flyway V2 initializes the counters from existing data. Application payload quotas do not measure physical database size.
+
+Unexpected errors are centrally mapped to safe response text and category-only logs. Backup/restore tooling refuses overwrite and existing targets and verifies every restored image hash and storage counter.
+
+The Angular CLI's transitive MCP SDK is overridden to patched 1.31.0 following [GHSA-6qxp-vccf-f47h](https://github.com/advisories/GHSA-6qxp-vccf-f47h). It is a development dependency; this application exposes no MCP functionality. Full npm audit is clean after the patch.
+
+Security scanning required upgrading Spring Boot to 4.1.1, with explicit Tomcat 11.0.25 and Jackson 2 BOM 2.21.7 / Jackson 3 BOM 3.1.7 patch overrides. The default JSON engine is Jackson 3. These patches close the serious findings in the previous baseline; see QA for final scan results.

@@ -23,13 +23,14 @@ interface Proof {
   standalone: true,
   imports: [FormsModule, DatePipe],
   template: ` <header>
-      <a href="/" class="brand"><span class="mark">P</span> PrintProof</a
-      ><span class="tagline">A clear yes. A confident print.</span>
+      <a href="/" class="brand"
+        ><span class="mark">P</span> Print Approval System</a
+      ><span class="tagline">Artwork review workspace</span>
       @if (logged()) {
         <button class="quiet" (click)="logout()">Sign out</button>
       }
     </header>
-    <main>
+    <main [class.customer]="!!token" [class.workspace]="!token">
       <div class="notice" role="alert" [hidden]="!error()">
         {{ error() }}
         <button class="quiet" (click)="refresh()">Try again</button>
@@ -39,7 +40,7 @@ interface Proof {
         @if (proof(); as p) {
           <h1>{{ p.title }}</h1>
           <p class="lead">
-            Take a moment to check the design and specifications below.
+            Check the artwork and production details. Your decision applies to this version only.
           </p>
           <div class="proof-grid">
             <section class="preview">
@@ -48,8 +49,8 @@ interface Proof {
                 alt="Design preview for customer approval"
               />
             </section>
-            <section class="card">
-              <span class="badge">Version {{ p.number }} · {{ p.state }}</span>
+            <section class="card decision">
+              <span class="badge" [attr.data-state]="p.state">Version {{ p.number }} · {{ p.state }}</span>
               <h2>Print specifications</h2>
               <p class="specs">{{ p.specs }}</p>
               <p class="small">
@@ -134,7 +135,7 @@ interface Proof {
       } @else if (!logged()) {
         <section class="login card">
           <div class="eyebrow">SHOP WORKSPACE</div>
-          <h1>Make the final<br />“yes” clear.</h1>
+          <h1>Approve the proof.<br />Print with confidence.</h1>
           <p class="lead">
             One version. One decision. An approval record everyone can
             understand.
@@ -152,8 +153,8 @@ interface Proof {
         </section>
       } @else if (!selected()) {
         <div class="eyebrow">SHOP WORKSPACE</div>
-        <h1>Work awaiting a clear yes.</h1>
-        <p class="lead">Keep every proof and decision in one place.</p>
+        <h1>Print jobs</h1>
+        <p class="lead">Your production queue. Every artwork version, every customer decision.</p>
         <form class="card create" (ngSubmit)="create()">
           <label
             >New job title<input
@@ -169,8 +170,8 @@ interface Proof {
             <button class="job" (click)="open(j)">
               <span
                 ><strong>{{ j.title }}</strong
-                ><small>Open versions and review links →</small></span
-              ><span class="badge">{{ j.state || "NO PREVIEW" }}</span>
+                ><small>View artwork, specifications and decision →</small></span
+              ><span class="badge" [attr.data-state]="j.state">{{ j.state || "NO PREVIEW" }}</span>
             </button>
           } @empty {
             <section class="card">
@@ -190,7 +191,7 @@ interface Proof {
           Every version keeps its own specifications and decision.
         </p>
         @if (!approved()) {
-          <form class="card" (ngSubmit)="upload()">
+          <form class="card upload" (ngSubmit)="upload()">
             <h2>Add a proof version</h2>
             <label
               >Print specifications<textarea
@@ -235,7 +236,7 @@ interface Proof {
             [class.unapproved]="v.state !== 'APPROVED'"
           >
             <div>
-              <span class="badge">Version {{ v.number }} · {{ v.state }}</span>
+              <span class="badge" [attr.data-state]="v.state">Version {{ v.number }} · {{ v.state }}</span>
               <h2>Print specifications</h2>
               <p class="specs">{{ v.specs }}</p>
               <p>{{ v.name }} {{ v.decided_at | date: "medium" }}</p>
@@ -260,7 +261,9 @@ interface Proof {
           </section>
         }
       }
-      <footer>PrintProof · Design approval, made unambiguous.</footer>
+      <footer>
+        Print Approval System · Design approval, made unambiguous.
+      </footer>
     </main>`,
 })
 class App {
@@ -288,7 +291,7 @@ class App {
   async api(path: string, method = "GET", body?: unknown): Promise<any> {
     let headers: Record<string, string> = {};
     if (method !== "GET") {
-      const c = await fetch("/api/csrf", { cache: "no-store" });
+      const c = await fetch("/api/csrf", { cache: "no-store", signal: AbortSignal.timeout(15000) });
       headers["X-CSRF-TOKEN"] = (await c.json()).token;
     }
     if (
@@ -300,6 +303,7 @@ class App {
     const r = await fetch("/api" + path, {
       method,
       headers,
+      signal: AbortSignal.timeout(15000),
       cache: "no-store",
       body:
         body instanceof FormData || body instanceof URLSearchParams
@@ -316,9 +320,15 @@ class App {
             ? "This link is unavailable. Ask the shop for a new review link."
             : r.status === 409
               ? "This proof has changed or was already decided. Refresh to see its current status."
-              : r.status === 413
-                ? "The preview is too large. Choose a JPG or PNG under 5 MB."
-                : "Unable to save. Check your details and image, then try again.",
+              : r.status === 429
+                ? "Too many requests. Wait one minute, then try again."
+                : r.status === 507
+                  ? "Shop storage is full. Contact the shop administrator before uploading again."
+                  : r.status === 503
+                    ? "The service is busy. Wait a moment, then try again."
+                    : r.status === 413
+                      ? "The preview is too large. Choose a JPG or PNG under 5 MB."
+                      : "Unable to save. Check your details and image, then try again.",
       );
     return r.status === 204 || r.headers.get("content-length") === "0"
       ? null
@@ -332,7 +342,7 @@ class App {
       await fn();
     } catch (e) {
       this.error.set(
-        e instanceof Error ? e.message : "Connection failed. Try again.",
+        e instanceof TypeError || (e instanceof DOMException && e.name === "TimeoutError") ? "Connection failed. Check your connection and try again." : e instanceof Error ? e.message : "Connection failed. Try again.",
       );
     } finally {
       this.busy.set(false);

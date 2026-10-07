@@ -1,0 +1,12 @@
+DO
+ restored_jobs 
+---------------
+            58
+(1 row)
+
+ restored_versions | approvals 
+-------------------+-----------
+                72 |        16
+(1 row)
+
+Restoration and all image digests/storage counters verified. Disposable database retained for inspection.

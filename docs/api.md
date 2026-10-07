@@ -18,3 +18,7 @@ All paths begin `/api`. GET `/csrf` returns `{ "token": "..." }` and establishes
 | POST `/proof/{token}/decision`      | `{version:UUID, action:"APPROVED" or "REVISION", name, comment}` |
 
 Every `/admin/**` endpoint requires the ADMIN role. Title/name max 120 characters; specifications/comments max 2000. Revision requires a nonblank comment. 400 means invalid data, 401 unauthenticated, 403 unauthorized or missing CSRF, 404 unavailable link/resource, 409 stale/already-decided state, and 413 excessive multipart size. The UI preserves input on failure and provides retry. Approval retry is idempotent for the same version, action, trimmed name and trimmed comment. Job creation and upload are not idempotent; after ambiguous network failures inspect history before resubmitting.
+
+## Capacity errors
+
+Send Content-Length on mutation requests. 411 rejects chunked mutation bodies; 413 rejects oversized requests; 429 indicates a throttle and includes Retry-After; 503 indicates temporary capacity pressure; 507 indicates a shop storage/job/version quota. On 507 the existing pending version remains unchanged. Public tokens must have the generated 43-character URL-safe format.

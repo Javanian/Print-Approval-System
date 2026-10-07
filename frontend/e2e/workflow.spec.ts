@@ -3,12 +3,13 @@ import { readFileSync } from "node:fs";
 const png = readFileSync("e2e/fixtures/menu.png");
 async function login(page: any) {
   await page.goto("/");
+  await expect(page.locator("header")).toHaveCSS("display", "flex");
   await page
     .getByLabel("Administrator password")
     .fill(process.env["ADMIN_PASSWORD"] || "local-test-password-only");
   await page.getByRole("button", { name: "Open workspace" }).click();
   await expect(
-    page.getByRole("heading", { name: "Work awaiting a clear yes." }),
+    page.getByRole("heading", { name: "Print jobs" }),
   ).toBeVisible();
 }
 async function create(page: any) {
@@ -115,6 +116,7 @@ test("invalid password, private API, forged upload and disconnected retry", asyn
   page,
 }) => {
   await page.goto("/");
+  await expect(page.locator("header")).toHaveCSS("display", "flex");
   await page.getByLabel("Administrator password").fill("incorrect");
   await page.getByRole("button", { name: "Open workspace" }).click();
   await expect(page.getByRole("alert")).toContainText("Sign in");
@@ -135,8 +137,90 @@ test("invalid password, private API, forged upload and disconnected retry", asyn
     .setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: png });
   await page.route("**/api/admin/jobs/*/versions", (route) => route.abort());
   await page.getByRole("button", { name: "Save new version" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("Connection failed");
+  await expect(page.getByRole("button", {name:"Save new version"})).toBeEnabled();
   await page.unroute("**/api/admin/jobs/*/versions");
   await page.getByRole("button", { name: "Save new version" }).click();
   await expect(page.getByText("Version 1 · PENDING")).toBeVisible();
+});
+
+test("keyboard navigation and focused accessibility audit", async ({
+  page,
+  browser,
+}) => {
+  const { default: AxeBuilder } = await import("@axe-core/playwright");
+  await page.goto("/");
+  await expect(page.locator("header")).toHaveCSS("display", "flex");
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "P Print Approval System" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Administrator password")).toBeFocused();
+  await page.keyboard.type(
+    process.env["ADMIN_PASSWORD"] || "local-test-password-only",
+  );
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "Print jobs" }),
+  ).toBeVisible();
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await create(page);
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  const url = await share(page);
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+  });
+  const customer = await context.newPage();
+  await customer.goto(url);
+  await expect(customer.getByLabel("Your name")).toBeVisible();
+  expect(
+    (
+      await new AxeBuilder({ page: customer })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await customer.getByLabel("Your name").focus();
+  await customer.keyboard.type("Keyboard Customer");
+  await customer.keyboard.press("Tab");
+  await expect(customer.getByLabel("Notes or requested changes")).toBeFocused();
+  await customer.keyboard.press("Tab");
+  await customer.keyboard.press("Space");
+  await expect(customer.getByLabel("I checked this version")).toBeChecked();
+  await expect(customer.getByRole("button", {name:"Approve this version"})).toBeEnabled();
+  await customer.keyboard.press("Tab");
+  await expect(customer.getByRole("button", {name:"Approve this version"})).toBeFocused();
+  await customer.keyboard.press("Enter");
+  await expect(
+    customer.getByText("Approved. Ready for the shop."),
+  ).toBeVisible();
+  expect(
+    (
+      await new AxeBuilder({ page: customer })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await context.close();
 });

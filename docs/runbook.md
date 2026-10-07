@@ -2,13 +2,29 @@
 
 ## Before an external pilot
 
-No production deployment is included. Configure TLS at an approved reverse proxy, set `COOKIE_SECURE=true`, keep the database on a private network and bind the app behind the proxy. Enforce request/login rate limits, redact capability URLs and cookies from access logs, set resource/storage quotas, patch images/dependencies and scan them, establish a retention policy and support contact, and verify backup restoration. Conduct accessibility and real-user review. No security audit, load test, multi-shop isolation, high availability, or legal certification has been completed.
+No production deployment is included. Configure TLS at an approved reverse proxy, set `COOKIE_SECURE=true`, keep the database on a private network and bind the app behind the proxy. The application now enforces process-local request/login limits, upload concurrency and storage quotas described below. Configure matching limits at the production edge, redact capability URLs and cookies from proxy logs, monitor capacity, establish a retention policy and support contact, and schedule encrypted backups/restoration drills. Repeat vulnerability and accessibility checks in the deployed environment and conduct real-user review. No security audit, load test, multi-shop isolation, high availability, or legal certification has been completed.
 
 Secrets are provided only through the deployment environment. Rotate `ADMIN_PASSWORD` and restart to rotate admin access; a restart invalidates existing sessions. Rotate database credentials separately. Avoid environment dumps in support logs. Do not use the illustrative local/CI passwords externally.
 
+## Built-in limits and their operating boundaries
+
+- Login: 10 attempts per remote IP per fixed minute. Public proof/CSRF endpoints: 120 requests per remote IP per fixed minute. Both share a global limit of 600 accepted requests/minute. Entries are bounded and cleared each minute; 429 includes `Retry-After: 60`. Counters reset on process restart and are per instance. Behind a proxy, clients share the proxy address unless a separately reviewed trusted-proxy setup is used. Spoofed `X-Forwarded-For` is ignored.
+- Upload concurrency: two requests at once per process; excess returns 503 with a five-second retry hint. JSON/form bodies are capped at 16 KiB, multipart requests at 6,000,000 bytes, image files at 5,000,000 bytes, decoded images at 16 million pixels, and normalized PNGs at 10,000,000 bytes. Chunked mutation requests receive 411; clients must send Content-Length. Tomcat connection/thread/header limits and a 20-minute session timeout further bound resources.
+- Persistent storage defaults: 1 GiB of normalized image payload, 5,000 jobs, 20,000 versions total and 100 versions/job. Configure `STORAGE_MAX_BYTES`, `STORAGE_MAX_JOBS`, and `STORAGE_MAX_VERSIONS` with measured capacity. PostgreSQL serializes storage reservations transactionally; rejected uploads return 507 and do not supersede existing proofs. These are application payload limits, not physical disk/WAL/index/backup limits. Do not delete rows or edit counters manually. There is no automatic retention deletion of approval records.
+- Application access logging is disabled. HTTP errors contain fixed messages; unexpected errors log only exception category/status, without request paths, exception text, SQL values, tokens, cookies or bodies. Keep upstream proxy logs redacted and restrict database logs independently.
+
 ## Backups and restoration
 
-Use an operator-controlled encrypted destination. `docker compose exec -T db pg_dump -U postgres -Fc printproof > backup.dump` includes images and approval history. Restore into a separate empty database with `pg_restore`; verify a job, image hash and approved record before considering recovery complete. Backups are sensitive customer data. No destructive restore command is automated.
+Use an operator-controlled encrypted destination. `docker compose exec -T db pg_dump -U postgres -Fc print-approval-system > backup.dump` includes images and approval history. Restore into a separate empty database with `pg_restore`; verify a job, image hash and approved record before considering recovery complete. Backups are sensitive customer data. No destructive restore command is automated.
+
+Executable procedures (PostgreSQL tools run inside the selected container):
+
+```sh
+DB_CONTAINER=your-postgres-container scripts/backup.sh /secure/encrypted-volume/backup.dump
+DB_CONTAINER=isolated-postgres-container scripts/restore-check.sh /secure/encrypted-volume/backup.dump print-approval-system_restore_drill_001
+```
+
+The backup script uses restrictive permissions, validates archive structure and refuses to replace a file. The restore script permits only a new `print-approval-system_restore_*` database, never drops a database, and checks every restored image digest plus job/version/byte accounting. It retains the database for inspection; operators handle deliberate cleanup separately. Encrypt the storage destination: the script does not supply encryption keys or encryption itself. `DB_USER` and `DB_NAME` optionally select the database role/source database. A disposable restore was executed successfully during cloud QA, including refusal checks; production scheduling and recovery objectives remain operator decisions.
 
 ## Failure recovery
 

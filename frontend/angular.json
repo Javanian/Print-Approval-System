@@ -1,7 +1,7 @@
 {
   "version": 1,
   "projects": {
-    "printproof": {
+    "print-approval-system": {
       "projectType": "application",
       "root": "",
       "sourceRoot": "src",
@@ -24,14 +24,24 @@
                   "maximumWarning": "600kB",
                   "maximumError": "900kB"
                 }
-              ]
+              ],
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": false
+              }
             }
           },
           "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular/build:dev-server",
-          "options": { "buildTarget": "printproof:build" }
+          "options": {
+            "buildTarget": "print-approval-system:build"
+          }
         }
       }
     }

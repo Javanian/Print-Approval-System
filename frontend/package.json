@@ -1,5 +1,5 @@
 {
-  "name": "printproof",
+  "name": "print-approval-system",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -20,7 +20,11 @@
     "@angular/build": "21.2.25",
     "@angular/cli": "21.2.25",
     "@angular/compiler-cli": "21.2.25",
-    "typescript": "5.9.3",
-    "@playwright/test": "1.56.1"
+    "@axe-core/playwright": "4.10.2",
+    "@playwright/test": "1.56.1",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": "1.31.0"
   }
 }

@@ -17,7 +17,7 @@ RUN --mount=type=secret,id=maven_settings,target=/root/.m2/settings.xml --mount=
     if [ -f /tmp/cacerts ]; then export MAVEN_OPTS="-Djavax.net.ssl.trustStore=/tmp/cacerts"; fi; mvn package -DskipTests
 FROM eclipse-temurin:21-jre@sha256:cff19e6215689161eb6162c11b86b0c60ddf802164f2eaf48d570f8fb79a36c5
 WORKDIR /app
-COPY --from=backend /build/target/printproof-1.0.0.jar app.jar
+COPY --from=backend /build/target/print-approval-system-1.0.0.jar app.jar
 USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["java","-XX:MaxRAMPercentage=70","-jar","app.jar"]

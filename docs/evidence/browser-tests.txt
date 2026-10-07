@@ -1,8 +1,8 @@
-2026-10-07 — production Docker image, PostgreSQL 17.11
-Playwright 1.56.1; system Chromium 151.0.7922.173
-BASE_URL=http://localhost:8082 CHROMIUM_PATH=/usr/bin/chromium npm test
+2026-10-07 — packaged production application; PostgreSQL 17.11
+Playwright 1.56.1; Chromium 151.0.7922.173
 
-PASS mobile approval, retry, immutable result and printable summary (2.6s)
-PASS revision, superseded link and revoked link recovery (2.1s)
-PASS invalid password, private API, forged upload and disconnected retry (1.1s)
-3 passed (7.1s)
+  ✓  1 [chromium] › e2e/workflow.spec.ts:34:5 › mobile approval, retry, immutable result and printable summary (1.9s)
+  ✓  2 [chromium] › e2e/workflow.spec.ts:79:5 › revision, superseded link and revoked link recovery (2.1s)
+  ✓  3 [chromium] › e2e/workflow.spec.ts:115:5 › invalid password, private API, forged upload and disconnected retry (1.3s)
+  ✓  4 [chromium] › e2e/workflow.spec.ts:147:5 › keyboard navigation and focused accessibility audit (3.8s)
+  4 passed (10.4s)

@@ -12,7 +12,7 @@ import java.util.concurrent.*;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class WorkflowTest {
   @Autowired ProofService service;
+  @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
   @Autowired MockMvc mvc;
 
   @org.springframework.beans.factory.annotation.Value("${app.admin.password}")
@@ -199,5 +200,20 @@ class WorkflowTest {
         .andExpect(status().isForbidden());
     service.revoke(version);
     mvc.perform(get("/api/proof/" + token + "/image")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  @org.springframework.transaction.annotation.Transactional
+  void exhaustedQuotaPreservesExistingVersion() throws Exception {
+    UUID job = job(), v = service.upload(job, "Original", png());
+    String token = service.share(v);
+    jdbc.update("UPDATE storage_budget SET used_bytes=1073741824 WHERE id=1");
+    var error =
+        assertThrows(
+            org.springframework.web.server.ResponseStatusException.class,
+            () -> service.upload(job, "Replacement", png()));
+    assertEquals(507, error.getStatusCode().value());
+    assertEquals("PENDING", service.publicVersion(token).get("state"));
+    assertEquals(1, service.versions(job).size());
   }
 }

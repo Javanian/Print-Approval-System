@@ -2,12 +2,12 @@ services:
   db:
     image: postgres:17.11@sha256:ae69c452f483507a6b99fb654cf93aad7fe156ffd2c56247707eef4e36d3c12b
     environment:
-      POSTGRES_DB: printproof
+      POSTGRES_DB: print-approval-system
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes: ["proof-data:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d printproof"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d print-approval-system"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -15,7 +15,7 @@ services:
     build: .
     ports: ["127.0.0.1:8080:8080"]
     environment:
-      DB_URL: jdbc:postgresql://db:5432/printproof
+      DB_URL: jdbc:postgresql://db:5432/print-approval-system
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
       COOKIE_SECURE: "false"

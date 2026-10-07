@@ -1,6 +1,40 @@
-# PrintProof
+# Print Approval System
 
 A small print shop gets an unambiguous decision on a specific preview and its print specifications before production. A customer can approve or request changes without creating an account.
+
+## Screenshots
+
+Captured from the running production container with fictional café data. These are real application screens, not mockups.
+
+![Administrator work list](docs/evidence/admin-work-list-desktop.png)
+![Approved version and specifications](docs/evidence/admin-version-desktop.png)
+
+<img src="docs/evidence/customer-review-mobile.png" alt="Mobile customer review with preview, specifications and decision form" width="360">
+<img src="docs/evidence/approved-mobile.png" alt="Saved customer approval and printable record on mobile" width="360">
+
+## Stack and architecture
+
+| Layer | Choice | Reason |
+| --- | --- | --- |
+| Frontend | Angular 21, TypeScript 5.9 | Strict templates and a compact responsive three-screen workflow |
+| Backend | Java 21, Spring Boot 4.1.1 | One deployable service with authentication, validation and transaction boundaries |
+| Persistence | PostgreSQL 17.11, JDBC, Flyway | Explicit concurrency locks, version history and reproducible migrations |
+| Private previews | Normalized PNGs in PostgreSQL | Authorization on every read and one consistent backup |
+| Verification | JUnit, PostgreSQL integration tests, Playwright, axe-core | State guards, browser journeys and focused accessibility checks |
+| Packaging | Docker Compose, GitHub Actions | Reproducible local startup and commit-linked verification |
+
+```mermaid
+flowchart LR
+  A[Shop administrator] --> U[Angular screens]
+  C[Customer with private link] --> U
+  U --> S[Spring Security and request limits]
+  S --> P[Approval service and JDBC transactions]
+  P --> D[(PostgreSQL: jobs, versions, images, quotas)]
+  F[Flyway migrations] --> D
+  D --> B[Backup and disposable restore verification]
+```
+
+Tradeoffs: database image storage simplifies privacy and backups but increases database size; one shop account keeps setup small but excludes multi-tenant SaaS; process-local throttling avoids another service but requires edge controls for multiple instances. See [architecture and ADRs](docs/architecture.md).
 
 ## Complete, deliberately small
 
@@ -34,12 +68,12 @@ Java **21 JDK** (a JRE is insufficient), Maven **3.9.11**, Node **24.19.0**, npm
 
 ```sh
 # Use a separate disposable test database, never production.
-export DB_URL=jdbc:postgresql://localhost:55432/printproof
+export DB_URL=jdbc:postgresql://localhost:55432/print-approval-system
 export DB_PASSWORD=your-local-db-password
 export ADMIN_PASSWORD=your-local-admin-password-at-least-16-chars
 export COOKIE_SECURE=false
 mvn -f backend/pom.xml verify
-java -jar backend/target/printproof-1.0.0.jar
+java -jar backend/target/print-approval-system-1.0.0.jar
 # In another terminal, with the same environment:
 cd frontend
 npm ci
@@ -57,6 +91,10 @@ Browser tests use http://localhost:4200 by default, or `BASE_URL`. `CHROMIUM_PAT
 The PostgreSQL-backed Spring suite covers lifecycle rules, concurrency, idempotent decisions, stale/revoked/rotated links, authorization, CSRF and upload validation. Playwright covers the real Angular UI, mobile approval, printable results, revisions, stale/revoked links, invalid credentials/files and network recovery. Angular production compilation uses strict TypeScript and template checks.
 
 [Architecture and decisions](docs/architecture.md) · [API](docs/api.md) · [Operations](docs/runbook.md) · [QA evidence](docs/qa.md)
+
+## Application safeguards
+
+Login and public-link throttling, bounded uploads, transactional image-storage quotas, fixed error responses and sanitized application error logs are enabled by default. Quota failures preserve the previous proof. Executable backup/restore scripts verify restored images and storage accounting in a new disposable database. See [operating limits](docs/runbook.md) and [actual QA results](docs/qa.md); local safeguards do not replace TLS, production secrets, edge controls or monitoring.
 
 ## Market hypothesis and scope
 
