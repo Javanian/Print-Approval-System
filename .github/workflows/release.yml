@@ -1,0 +1,17 @@
+name: Build reviewable container
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  container:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t printproof:${{ github.sha }} .
+      - run: docker save printproof:${{ github.sha }} | gzip > printproof-container.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: printproof-container-${{ github.sha }}
+          path: printproof-container.tar.gz
+          retention-days: 7

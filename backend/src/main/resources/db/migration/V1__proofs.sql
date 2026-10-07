@@ -1,0 +1,3 @@
+CREATE TABLE jobs(id uuid PRIMARY KEY, title varchar(120) NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE versions(id uuid PRIMARY KEY, job_id uuid NOT NULL REFERENCES jobs(id), number int NOT NULL, specs varchar(2000) NOT NULL, image bytea NOT NULL, digest char(64) NOT NULL, state varchar(20) NOT NULL DEFAULT 'PENDING' CHECK(state IN ('PENDING','REVISION','APPROVED','SUPERSEDED')), token_hash char(64), name varchar(120), comment varchar(2000), decided_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(job_id,number));
+CREATE UNIQUE INDEX unique_share ON versions(token_hash) WHERE token_hash IS NOT NULL;

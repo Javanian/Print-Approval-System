@@ -1,0 +1,56 @@
+name: Verify
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_DB: printproof
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 12
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/printproof
+      DB_PASSWORD: ci-only-password
+      ADMIN_PASSWORD: ci-only-administrator-password
+      COOKIE_SECURE: "false"
+      BASE_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: mvn -B -f backend/pom.xml verify
+      - run: npm ci && npm run build && npx tsc --noEmit
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: docker build -t printproof:ci .
+      - run: |
+          docker run -d --name printproof-ci --network host -e DB_URL -e DB_PASSWORD -e ADMIN_PASSWORD -e COOKIE_SECURE printproof:ci
+          for i in $(seq 1 60); do if curl -fsS http://localhost:8080/api/csrf > /dev/null; then exit 0; fi; sleep 2; done
+          docker logs printproof-ci
+          exit 1
+      - run: npm test
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-${{ github.sha }}
+          path: |
+            backend/target/surefire-reports
+            frontend/playwright-report
+            frontend/test-results
