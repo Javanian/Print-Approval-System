@@ -2,28 +2,49 @@
 
 [![Verify](https://github.com/Javanian/Print-Approval-System/actions/workflows/ci.yml/badge.svg)](https://github.com/Javanian/Print-Approval-System/actions/workflows/ci.yml)
 
-A small print shop gets an unambiguous decision on a specific preview and its print specifications before production. A customer can approve or request changes without creating an account.
+A small print shop needs a clear yes or no from the customer on one specific preview and its print specifications before anything goes to production. This app gives the shop a work list and gives the customer a private mobile link where they approve or request changes, without creating an account.
 
-## Screenshots
+| Shop work list | Approved version and specifications |
+| --- | --- |
+| ![Administrator work list](docs/evidence/admin-work-list-desktop.png) | ![Approved version with print specifications](docs/evidence/admin-version-desktop.png) |
 
-Captured from the running production container with fictional café data. These are real application screens, not mockups.
+<img src="docs/evidence/customer-review-mobile.png" alt="Customer review on mobile with preview, specifications and decision form" width="300"> <img src="docs/evidence/approved-mobile.png" alt="Saved customer approval and printable record on mobile" width="300">
 
-![Administrator work list](docs/evidence/admin-work-list-desktop.png)
-![Approved version and specifications](docs/evidence/admin-version-desktop.png)
+Screenshots come from the running production container with fictional café data.
 
-<img src="docs/evidence/customer-review-mobile.png" alt="Mobile customer review with preview, specifications and decision form" width="360">
-<img src="docs/evidence/approved-mobile.png" alt="Saved customer approval and printable record on mobile" width="360">
+## How it works
 
-## Stack and architecture
+1. The shop administrator signs in and creates a job.
+2. They upload a JPG or PNG preview with size, paper stock, quantity, sides and finish.
+3. They create a private review link and send it through whatever channel they already use with the customer.
+4. The customer opens the link on their phone, checks the preview and specifications, enters their name, then approves or asks for a revision.
+5. The shop prints the approved record. An approved job is locked; further work needs a new job.
 
-| Layer | Choice | Reason |
+Rules the system enforces:
+
+- Every version stays in the shop's history. Uploading a new version blocks approval of an older pending one.
+- Replacing a link invalidates the old link. Revoking a link blocks both viewing and submitting.
+- Submitting the same decision twice returns the original result and timestamp instead of creating a duplicate.
+
+### Lifecycle of a proof version
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Javanian/Print-Approval-System/main/docs/diagrams/print-version-lifecycle-dark.svg">
+  <img alt="Proof version lifecycle: a new version starts PENDING, becomes shareable with a link, and ends APPROVED, REVISION when the customer asks for changes, or SUPERSEDED when the shop uploads a newer version; revoking a link returns it to PENDING" src="docs/diagrams/print-version-lifecycle-light.svg">
+</picture>
+
+Each state and transition is traced to the code it comes from in [docs/diagrams/print-version-lifecycle.json](docs/diagrams/print-version-lifecycle.json).
+
+## Architecture
+
+| Layer | Choice | Why |
 | --- | --- | --- |
-| Frontend | Angular 21, TypeScript 5.9 | Strict templates and a compact responsive three-screen workflow |
+| Frontend | Angular 21, TypeScript 5.9 | Strict templates for a compact, responsive three-screen workflow |
 | Backend | Java 21, Spring Boot 4.1.1 | One deployable service with authentication, validation and transaction boundaries |
-| Persistence | PostgreSQL 17.11, JDBC, Flyway | Explicit concurrency locks, version history and reproducible migrations |
-| Private previews | Normalized PNGs in PostgreSQL | Authorization on every read and one consistent backup |
-| Verification | JUnit, PostgreSQL integration tests, Playwright, axe-core | State guards, browser journeys and focused accessibility checks |
-| Packaging | Docker Compose, GitHub Actions | Reproducible local startup and commit-linked verification |
+| Persistence | PostgreSQL 17.11, JDBC, Flyway | Explicit row locks, version history and reproducible migrations |
+| Preview storage | Normalized PNGs inside PostgreSQL | Authorization on every read and a single backup |
+| Verification | JUnit with real PostgreSQL, Playwright, axe-core | State rules, browser journeys and accessibility checks |
+| Packaging | Docker Compose, GitHub Actions | Reproducible startup and verification on every commit |
 
 ```mermaid
 flowchart LR
@@ -33,75 +54,70 @@ flowchart LR
   S --> P[Approval service and JDBC transactions]
   P --> D[(PostgreSQL: jobs, versions, images, quotas)]
   F[Flyway migrations] --> D
-  D --> B[Backup and disposable restore verification]
+  D --> B[Backup and restore verification]
 ```
 
-Tradeoffs: database image storage simplifies privacy and backups but increases database size; one shop account keeps setup small but excludes multi-tenant SaaS; process-local throttling avoids another service but requires edge controls for multiple instances. See [architecture and ADRs](docs/architecture.md).
+Trade-offs I accepted: storing images in the database simplifies privacy and backups but grows the database; one shop account keeps setup small but rules out multi-tenant use; in-process throttling avoids an extra service but needs edge rate limiting if more than one instance runs. The reasoning is recorded as ADRs in [docs/architecture.md](docs/architecture.md).
 
-## Complete, deliberately small
+## Safeguards
 
-1. Sign into the shop workspace and create a job.
-2. Save a JPG/PNG preview with size, stock, quantity, sides and finish.
-3. Create a private review link and send it using your existing communication channel.
-4. The customer checks the mobile preview and specifications, enters a name, then approves or requests a revision.
-5. Print the approved record. Approved jobs are locked; new work requires a new job.
+- Throttling on login and on public review links.
+- Upload size limits, image normalization and image-storage quotas checked inside the same transaction. A quota failure keeps the previous proof intact.
+- Fixed error responses and sanitized error logs.
+- Backup and restore scripts that restore into a fresh database and verify images and storage accounting.
 
-Old versions remain visible to the shop. A new version blocks approval of an earlier pending version. Replacing a link invalidates the old one; revocation prevents both viewing and submission. Duplicate identical decisions return the original result, including its timestamp.
-
-Customer-entered names are **not verified identity** or certified electronic signatures. Screen images are **not exact print color proofs**. No claims of legal certification, customer adoption, revenue, or production readiness are made.
+These do not replace TLS, real secrets management, edge controls or monitoring in a public deployment. See the [runbook](docs/runbook.md).
 
 ## Run locally with Docker
 
-Requirements: Docker Engine and Compose v2, a browser, and enough memory for Java/Node image builds. All work for this delivery was performed in a cloud container.
+Requirements: Docker Engine with Compose v2.
 
 ```sh
 cp .env.example .env
-# Replace BOTH password placeholders. Administrator password must be at least 16 characters.
+# Replace both password placeholders. The administrator password needs at least 16 characters.
 docker compose up --build -d
 ```
 
-Open http://localhost:8080. The administrator username is internally fixed to `admin`; the screen asks only for the configured password. The local Compose port is bound to loopback and uses HTTP cookies. Do not expose this configuration directly to the Internet.
+Open http://localhost:8080 and sign in with the administrator password (the username is fixed to `admin`). The port is bound to loopback and cookies are sent over plain HTTP, so do not expose this configuration to the internet.
 
-There are no seeded accounts, jobs or public demo links. Create sample content manually using [the demo](docs/demo.md). Database storage persists in `proof-data`.
+The app starts empty, with no seeded accounts or jobs. Follow the [five-minute demo](docs/demo.md) to create sample content.
 
-## Development and tests
+## Tests
 
-Java **21 JDK** (a JRE is insufficient), Maven **3.9.11**, Node **24.19.0**, npm, PostgreSQL **17.11**.
+Requirements: JDK 21, Maven 3.9.11, Node 24.19.0, PostgreSQL 17.11. Use a separate, disposable database.
 
 ```sh
-# Use a separate disposable test database, never production.
 export DB_URL=jdbc:postgresql://localhost:55432/print-approval-system
 export DB_PASSWORD=your-local-db-password
 export ADMIN_PASSWORD=your-local-admin-password-at-least-16-chars
 export COOKIE_SECURE=false
-mvn -f backend/pom.xml verify
+
+mvn -f backend/pom.xml verify                       # backend tests on real PostgreSQL
 java -jar backend/target/print-approval-system-1.0.0.jar
-# In another terminal, with the same environment:
-cd frontend
-npm ci
-npm run build
-npx tsc --noEmit
-npm start
-# In a third terminal:
-cd frontend
-npx playwright install chromium
-npm test
+
+cd frontend && npm ci && npm run build && npx tsc --noEmit
+npm start                                           # second terminal
+npx playwright install chromium && npm test         # third terminal
 ```
 
-Browser tests use http://localhost:4200 by default, or `BASE_URL`. `CHROMIUM_PATH` optionally selects an installed Chromium executable. Tests create disposable jobs and require the same `ADMIN_PASSWORD` as the server. Never point them at production.
+- The Spring suite covers lifecycle rules, concurrency, idempotent decisions, stale, revoked and rotated links, authorization, CSRF and upload validation.
+- Playwright drives the real Angular UI: mobile approval, printable results, revisions, invalid credentials and files, and network recovery.
+- Browser tests use `BASE_URL` (default http://localhost:4200) and create their own jobs. Never point them at production.
 
-The PostgreSQL-backed Spring suite covers lifecycle rules, concurrency, idempotent decisions, stale/revoked/rotated links, authorization, CSRF and upload validation. Playwright covers the real Angular UI, mobile approval, printable results, revisions, stale/revoked links, invalid credentials/files and network recovery. Angular production compilation uses strict TypeScript and template checks.
+Test output is kept in [docs/evidence](docs/evidence/) and summarized in [docs/qa.md](docs/qa.md).
 
-[Architecture and decisions](docs/architecture.md) · [API](docs/api.md) · [Operations](docs/runbook.md) · [QA evidence](docs/qa.md)
+## Scope
 
-## Application safeguards
+Not included on purpose: a design editor, PDF or CDR rendering, payments, invoicing, messaging integrations, scheduling, analytics and multi-shop tenancy.
 
-Login and public-link throttling, bounded uploads, transactional image-storage quotas, fixed error responses and sanitized application error logs are enabled by default. Quota failures preserve the previous proof. Executable backup/restore scripts verify restored images and storage accounting in a new disposable database. See [operating limits](docs/runbook.md) and [actual QA results](docs/qa.md); local safeguards do not replace TLS, production secrets, edge controls or monitoring.
+A customer-entered name is not a verified identity or a certified electronic signature, and on-screen colors are not a color-accurate print proof.
 
-## Market hypothesis and scope
+This is a portfolio project. The product idea, that small print shops would pay for an explicit approval record, has not been tested with real customers. The next question to answer is whether a shop owner and customer can complete a real approval without help, and whether the record reduces disputed reprints.
 
-Hypothesis: small print shops that currently reconcile approval across messages will pay for a simple per-shop workspace with an explicit version decision and printable record. This is unvalidated; there are no customer interviews or revenue claims. The next learning question is whether an owner and customer can complete a real approval without assistance, and whether the record reduces disputed reprints.
+## Documentation
 
-Concept references: [Jason Cohen's SLC framework](https://longform.asmartbear.com/slc/) and [Ayuprint terms](https://www.ayuprint.com/p/terms-conditions.html). The latter URL was supplied as inspiration but could not be retrieved during this build; no statement here is attributed to its contents. SLC means a complete narrow outcome, not verified production readiness.
+[Architecture and ADRs](docs/architecture.md) · [API](docs/api.md) · [Runbook](docs/runbook.md) · [QA evidence](docs/qa.md) · [Demo script](docs/demo.md) · [Design system](docs/design-system.md)
 
-Deliberately excluded: editor, AI/CDR/PDF rendering, payments, invoicing, messaging APIs, scheduling, analytics and multi-shop tenancy. Delight is a readable mobile proof and one-step decision with explicit recovery.
+## Author
+
+Tee San ([Javanian](https://github.com/Javanian)) · [Portfolio](https://porto.hillteo.com) · [teesanfajar@gmail.com](mailto:teesanfajar@gmail.com)

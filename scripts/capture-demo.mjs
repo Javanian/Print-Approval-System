@@ -1,5 +1,6 @@
 import { chromium } from "../frontend/node_modules/playwright/index.mjs";
 import { mkdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 const url = new URL(process.env.DEMO_URL || "http://localhost:8085");
 if (
   process.env.DEMO_CONFIRM_DISPOSABLE !== "YES" ||
@@ -31,7 +32,7 @@ async function job(title, specs) {
   await page
     .getByLabel("JPG or PNG preview")
     .setInputFiles(
-      new URL("../frontend/e2e/fixtures/menu.png", import.meta.url).pathname,
+      fileURLToPath(new URL("../frontend/e2e/fixtures/menu.png", import.meta.url)),
     );
   await page.getByRole("button", { name: "Save new version" }).click();
   await page.getByText("Version 1 · PENDING").waitFor();
@@ -52,14 +53,14 @@ const customer = await browser.newContext({
 const mobile = await customer.newPage();
 await mobile.goto(link);
 await mobile.getByLabel("Your name").waitFor();
-await mkdir(new URL("../docs/evidence/", import.meta.url), { recursive: true });
+await mkdir(fileURLToPath(new URL("../docs/evidence/", import.meta.url)), { recursive: true });
 const output = (name) =>
-  new URL("../docs/evidence/" + name, import.meta.url).pathname;
+  fileURLToPath(new URL("../docs/evidence/" + name, import.meta.url));
 await mobile.getByLabel("Your name").fill("Alex Customer");
 await mobile.getByLabel("I checked this version").check();
 await mobile.waitForFunction(() => {
   const button = [...document.querySelectorAll("button")].find(e => e.textContent.trim() === "Approve this version");
-  return button && getComputedStyle(button).backgroundColor === "rgb(183, 56, 34)";
+  return button && getComputedStyle(button).backgroundColor === "rgb(109, 40, 217)";
 });
 await mobile.screenshot({
   path: output("customer-review-mobile.png"),

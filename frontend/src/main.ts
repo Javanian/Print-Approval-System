@@ -135,7 +135,7 @@ interface Proof {
       } @else if (!logged()) {
         <section class="login card">
           <div class="eyebrow">SHOP WORKSPACE</div>
-          <h1>Approve the proof.<br />Print with confidence.</h1>
+          <h1>Approve the proof.<br /><em>Print with confidence.</em></h1>
           <p class="lead">
             One version. One decision. An approval record everyone can
             understand.

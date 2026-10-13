@@ -1,0 +1,196 @@
+{
+  "schema_version": 2,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Print Approval: lifecycle of a proof version",
+    "output": "docs/diagrams/print-version-lifecycle.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "git@github.com:Javanian/Print-Approval-System.git",
+      "link_mode": "local-only",
+      "revision": "165a5723d2838c714c228f3e0d54a3929ba9424a"
+    }
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Shop and customer"
+    },
+    {
+      "id": "terminal",
+      "label": "Closed versions"
+    }
+  ],
+  "states": [
+    {
+      "id": "pending",
+      "type": "start",
+      "label": "PENDING",
+      "sublabel": "uploaded, no link yet",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "sources": [
+        {
+          "path": "backend/src/main/resources/db/migration/V1__proofs.sql",
+          "line": 2,
+          "end_line": 2,
+          "label": "state column"
+        },
+        {
+          "path": "backend/src/main/java/com/printproof/ProofService.java",
+          "line": 79,
+          "end_line": 131,
+          "label": "upload"
+        }
+      ]
+    },
+    {
+      "id": "shared",
+      "type": "waiting",
+      "label": "Link sent",
+      "sublabel": "still PENDING, token set",
+      "lane": "main",
+      "col": 2,
+      "step": "02",
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/printproof/ProofService.java",
+          "line": 139,
+          "end_line": 150,
+          "label": "share"
+        }
+      ]
+    },
+    {
+      "id": "approved",
+      "type": "success",
+      "label": "APPROVED",
+      "sublabel": "job locked for good",
+      "lane": "main",
+      "col": 4,
+      "step": "03",
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/printproof/ProofService.java",
+          "line": 177,
+          "end_line": 196,
+          "label": "decide"
+        },
+        {
+          "path": "backend/src/main/java/com/printproof/ProofService.java",
+          "line": 82,
+          "end_line": 84,
+          "label": "lock on upload"
+        }
+      ]
+    },
+    {
+      "id": "superseded",
+      "type": "neutral",
+      "label": "SUPERSEDED",
+      "sublabel": "newer version uploaded",
+      "lane": "terminal",
+      "col": 0,
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/printproof/ProofService.java",
+          "line": 120,
+          "end_line": 120
+        }
+      ]
+    },
+    {
+      "id": "revision",
+      "type": "failure",
+      "label": "REVISION",
+      "sublabel": "customer asked for changes",
+      "lane": "terminal",
+      "col": 2,
+      "sources": [
+        {
+          "path": "backend/src/main/java/com/printproof/Api.java",
+          "line": 83,
+          "end_line": 88,
+          "label": "reason required"
+        },
+        {
+          "path": "backend/src/main/java/com/printproof/ProofService.java",
+          "line": 187,
+          "end_line": 194
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "share",
+      "from": "pending",
+      "to": "shared",
+      "label": "create link",
+      "variant": "emphasis"
+    },
+    {
+      "id": "approve",
+      "from": "shared",
+      "to": "approved",
+      "label": "customer approves",
+      "variant": "emphasis"
+    },
+    {
+      "id": "revoke",
+      "from": "shared",
+      "to": "pending",
+      "label": "revoke or replace link",
+      "variant": "dashed"
+    },
+    {
+      "id": "ask",
+      "from": "shared",
+      "to": "revision",
+      "label": "customer asks changes",
+      "variant": "security"
+    },
+    {
+      "id": "newer",
+      "from": "pending",
+      "to": "superseded",
+      "label": "shop uploads again",
+      "variant": "dashed"
+    },
+    {
+      "id": "next",
+      "from": "revision",
+      "to": "pending",
+      "label": "shop uploads next version",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "One decision per version",
+      "items": [
+        "The decision is written inside a transaction that locks the job row",
+        "Sending the same decision again returns the first result instead of a duplicate"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Links",
+      "items": [
+        "Only a PENDING version can be shared",
+        "Replacing a link invalidates the old one; revoking blocks viewing and submitting"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "After approval",
+      "items": [
+        "An approved job refuses new uploads; further work needs a new job",
+        "The approval record keeps the image SHA-256, the name and the time"
+      ]
+    }
+  ]
+}
